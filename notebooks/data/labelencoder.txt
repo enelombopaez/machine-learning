@@ -1,0 +1,9 @@
+color,tag
+azul,0
+rojo,0
+rojo,1
+rojo,1
+rojo,1
+blanco,0
+negro,0
+naranja,1

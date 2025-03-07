@@ -36,30 +36,34 @@ def clean_data(df):
 
 # Exploratory Data Analysis (EDA)
 def perform_eda(df):
-    print("\nData Overview:")
+    print("\n🔹 First 5 Rows of the Dataset:")
     print(df.head())
-    print("\nDataset Info:")
-    print(df.info())
-    print("\nSummary Statistics:")
+
+    print("\n🔹 Dataset Summary:")
     print(df.describe())
-    
-    # Detect Outliers using Boxplot
-    plt.figure(figsize=(12, 6))
-    sns.boxplot(x=df['Price'])
-    plt.title("Price Outliers")
-    plt.show()
-    
-    # Correlation Heatmap
-    plt.figure(figsize=(12, 8))
-    
-    # Filter only numerical columns for correlation analysis
+
+    print("\n🔹 Data Types:")
+    print(df.dtypes)
+
+    print("\n🔹 Missing Values Count:")
+    print(df.isnull().sum())
+
+    # Boxplot to visualize price distribution
+    plt.figure(figsize=(10, 6))
+    sns.boxplot(x=df["Price"])
+    plt.title("Price Distribution (Detecting Outliers)")
+    plt.show()  # 🔹 Ensure the plot renders
+
+    # Heatmap for numerical feature correlation
     numeric_df = df.select_dtypes(include=[np.number])
-    plt.figure(figsize=(12, 8))
-    sns.heatmap(numeric_df.corr(), annot=True, cmap="coolwarm", fmt=".2f")
-    plt.title("Feature Correlation (Numerical Only)")
-    plt.show()
-    plt.title("Feature Correlation")
-    plt.show()
+
+    if numeric_df.shape[1] > 1:  # Ensure there are at least 2 numerical columns
+        plt.figure(figsize=(12, 8))
+        sns.heatmap(numeric_df.corr(), annot=True, cmap="coolwarm", fmt=".2f")
+        plt.title("Feature Correlation (Numerical Only)")
+        plt.show()  # 🔹 Ensure the heatmap renders
+    else:
+        print("\n⚠ No numerical columns available for correlation heatmap.")
     
 # Feature Selection using Random Forest
 def feature_selection(df, target_column="Price"):

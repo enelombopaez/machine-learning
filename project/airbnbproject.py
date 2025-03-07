@@ -110,60 +110,59 @@ def split_data(df, target_column="Price", test_size=0.2):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
     return X_train, X_test, y_train, y_test
 
+def feature_selection_and_engineering(df):
+    # Ensure df is a copy to avoid SettingWithCopyWarning
+    df = df.copy()
+
+    # Keep relevant columns
+    columns_to_keep = ["Last Scraped", "Street", "State", "Latitude", "Longitude", 
+                       "Room Type", "Accommodates", "Bathrooms", "Bedrooms", 
+                       "Monthly Price", "Cleaning Fee", "Host Since", "Price"]
+    
+    df = df[columns_to_keep].copy()
+
+    # Convert "Host Since" to datetime, handling "Unknown" values
+    df["Host Since"] = pd.to_datetime(df["Host Since"], errors="coerce")
+
+    # Create new feature: Host Age (years since listing)
+    df["Host Age"] = pd.to_datetime("today").year - df["Host Since"].dt.year
+
+    # Fill missing values in Host Age with the median
+    df["Host Age"].fillna(df["Host Age"].median(), inplace=True)
+
+    # Drop the original "Host Since" column (no longer needed)
+    df.drop(columns=["Host Since"], inplace=True)
+
+    print(f"✅ Selected Features: {list(df.columns)}")
+    return df
+
 # Main function to execute the pipeline
 def main():
     file_path = "/home/nelson/machine-learning/project/airbnb-listings-extract.csv"
     df = load_data(file_path)
     df_cleaned = clean_data(df)
     perform_eda(df_cleaned)
-    df_selected = feature_selection(df_cleaned)
+
+    # Feature selection & engineering
+    df_selected = feature_selection_and_engineering(df_cleaned)
+
+    # Ensure "Price" is included before scaling
     df_scaled = scale_data(df_selected)
-    
+
     # Save cleaned and processed data
     cleaned_file_path = "airbnb_cleaned.csv"
     df_scaled.to_csv(cleaned_file_path, index=False)
-    print(f"Cleaned and processed data saved to {cleaned_file_path}")
+    print(f"✅ Cleaned and processed data saved to {cleaned_file_path}")
+
+    # Split data (make sure "Price" exists)
+    X_train, X_test, y_train, y_test = split_data(df_scaled, target_column="Price")
     
-    # Split and save train/test sets
-    X_train, X_test, y_train, y_test = split_data(df_scaled)
+    # Save train/test sets
     X_train.to_csv("X_train.csv", index=False)
     X_test.to_csv("X_test.csv", index=False)
     y_train.to_csv("y_train.csv", index=False)
     y_test.to_csv("y_test.csv", index=False)
-    print("Train and test datasets saved.")
-
-def feature_selection_and_engineering(df, target_column="Price"):
-    # 🔹 Drop irrelevant columns
-    url_columns = [col for col in df.columns if "url" in col.lower()]
-    df = df.drop(columns=url_columns, errors="ignore")
-    
-    # 🔹 Separate Features (X) & Target (y)
-    X = df.drop(columns=[target_column])
-    y = df[target_column]
-
-    # 🔹 Convert Categorical Variables to Numbers
-    label_encoders = {}
-    for col in X.select_dtypes(include=["object"]).columns:
-        le = LabelEncoder()
-        X[col] = le.fit_transform(X[col])
-        label_encoders[col] = le  # Store encoders for later use
-
-    # 🔹 Feature Selection with RandomForest
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
-    model.fit(X, y)
-    
-    selector = SelectFromModel(model, prefit=True)
-    selected_features = X.columns[(selector.get_support())]
-
-    print("\n✅ Selected Features:", list(selected_features))
-
-    # 🔹 Feature Engineering: Create New Variables
-    if "Host Since" in df.columns:
-        df["Host Age"] = pd.to_datetime("today").year - pd.to_datetime(df["Host Since"]).dt.year
-        selected_features = selected_features.append(pd.Index(["Host Age"]))
-
-    # 🔹 Return the refined dataset
-    return df[selected_features].join(y)
+    print("✅ Train and test datasets saved.")
 
 if __name__ == "__main__":
     main()

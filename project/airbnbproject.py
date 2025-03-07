@@ -132,5 +132,38 @@ def main():
     y_test.to_csv("y_test.csv", index=False)
     print("Train and test datasets saved.")
 
+def feature_selection_and_engineering(df, target_column="Price"):
+    # 🔹 Drop irrelevant columns
+    url_columns = [col for col in df.columns if "url" in col.lower()]
+    df = df.drop(columns=url_columns, errors="ignore")
+    
+    # 🔹 Separate Features (X) & Target (y)
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+
+    # 🔹 Convert Categorical Variables to Numbers
+    label_encoders = {}
+    for col in X.select_dtypes(include=["object"]).columns:
+        le = LabelEncoder()
+        X[col] = le.fit_transform(X[col])
+        label_encoders[col] = le  # Store encoders for later use
+
+    # 🔹 Feature Selection with RandomForest
+    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model.fit(X, y)
+    
+    selector = SelectFromModel(model, prefit=True)
+    selected_features = X.columns[(selector.get_support())]
+
+    print("\n✅ Selected Features:", list(selected_features))
+
+    # 🔹 Feature Engineering: Create New Variables
+    if "Host Since" in df.columns:
+        df["Host Age"] = pd.to_datetime("today").year - pd.to_datetime(df["Host Since"]).dt.year
+        selected_features = selected_features.append(pd.Index(["Host Age"]))
+
+    # 🔹 Return the refined dataset
+    return df[selected_features].join(y)
+
 if __name__ == "__main__":
     main()

@@ -1,5 +1,12 @@
 import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.feature_selection import SelectFromModel
+from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import LabelEncoder
 
 # Load the raw CSV file
 def load_data(file_path):
@@ -7,27 +14,84 @@ def load_data(file_path):
 
 # Clean the dataset
 def clean_data(df):
-    # Drop unnecessary columns
     columns_to_drop = [
         "Scrape ID", "Experiences Offered", "Thumbnail Url", "Medium Url", "XL Picture Url",
         "Host Thumbnail Url", "Host Picture Url", "Host URL", "Picture Url", "Calendar Updated",
         "Has Availability", "Calendar last Scraped", "Geolocation"
     ]
     df = df.drop(columns=[col for col in columns_to_drop if col in df.columns], errors='ignore')
-
-    # Convert price-related columns to numeric
+    
     price_columns = ["Price", "Weekly Price", "Monthly Price", "Security Deposit", "Cleaning Fee"]
     for col in price_columns:
         if col in df.columns:
             df[col] = df[col].replace('[\$,]', '', regex=True).astype(float)
     
-    # Fill missing values
     num_cols = df.select_dtypes(include=["number"]).columns
     df[num_cols] = df[num_cols].fillna(df[num_cols].median())
     
     cat_cols = df.select_dtypes(include=["object"]).columns
     df[cat_cols] = df[cat_cols].fillna("Unknown")
     
+    return df
+
+# Exploratory Data Analysis (EDA)
+def perform_eda(df):
+    print("\nData Overview:")
+    print(df.head())
+    print("\nDataset Info:")
+    print(df.info())
+    print("\nSummary Statistics:")
+    print(df.describe())
+    
+    # Detect Outliers using Boxplot
+    plt.figure(figsize=(12, 6))
+    sns.boxplot(x=df['Price'])
+    plt.title("Price Outliers")
+    plt.show()
+    
+    # Correlation Heatmap
+    plt.figure(figsize=(12, 8))
+    
+    # Filter only numerical columns for correlation analysis
+    numeric_df = df.select_dtypes(include=[np.number])
+    plt.figure(figsize=(12, 8))
+    sns.heatmap(numeric_df.corr(), annot=True, cmap="coolwarm", fmt=".2f")
+    plt.title("Feature Correlation (Numerical Only)")
+    plt.show()
+    plt.title("Feature Correlation")
+    plt.show()
+    
+# Feature Selection using Random Forest
+def feature_selection(df, target_column="Price"):
+    # Drop URL-like columns (ensure no URLs remain)
+    url_columns = [col for col in df.columns if "url" in col.lower()]
+    df = df.drop(columns=url_columns, errors="ignore")
+    
+    # Separate features and target
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+
+    # Convert categorical variables to numerical values
+    label_encoders = {}
+    for col in X.select_dtypes(include=["object"]).columns:
+        le = LabelEncoder()
+        X[col] = le.fit_transform(X[col])
+        label_encoders[col] = le
+
+    # Train the RandomForest model for feature selection
+    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model.fit(X, y)
+    selector = SelectFromModel(model, prefit=True)
+    selected_features = X.columns[(selector.get_support())]
+
+    print("\nSelected Features:", list(selected_features))
+    return df[selected_features].join(y)
+
+# Data Scaling
+def scale_data(df):
+    scaler = StandardScaler()
+    numerical_cols = df.select_dtypes(include=["number"]).columns
+    df[numerical_cols] = scaler.fit_transform(df[numerical_cols])
     return df
 
 # Split data into training and testing sets
@@ -44,22 +108,24 @@ def split_data(df, target_column="Price", test_size=0.2):
 
 # Main function to execute the pipeline
 def main():
-    file_path = "/home/nelson/machine-learning/project/airbnb-listings-extract.csv"  # Update this if needed
+    file_path = "/home/nelson/machine-learning/project/airbnb-listings-extract.csv"
     df = load_data(file_path)
     df_cleaned = clean_data(df)
+    perform_eda(df_cleaned)
+    df_selected = feature_selection(df_cleaned)
+    df_scaled = scale_data(df_selected)
     
-    # Save cleaned data
-    cleaned_file_path = "/home/nelson/machine-learning/project/airbnb_cleaned.csv"
-    df_cleaned.to_csv(cleaned_file_path, index=False)
-    print(f"Cleaned data saved to {cleaned_file_path}")
+    # Save cleaned and processed data
+    cleaned_file_path = "airbnb_cleaned.csv"
+    df_scaled.to_csv(cleaned_file_path, index=False)
+    print(f"Cleaned and processed data saved to {cleaned_file_path}")
     
     # Split and save train/test sets
-    X_train, X_test, y_train, y_test = split_data(df_cleaned)
-    X_train.to_csv("/home/nelson/machine-learning/project/X_train.csv", index=False)
-    X_test.to_csv("/home/nelson/machine-learning/project/X_test.csv", index=False)
-    if y_train is not None:
-        y_train.to_csv("/home/nelson/machine-learning/project/y_train.csv", index=False)
-        y_test.to_csv("/home/nelson/machine-learning/project/y_test.csv", index=False)
+    X_train, X_test, y_train, y_test = split_data(df_scaled)
+    X_train.to_csv("X_train.csv", index=False)
+    X_test.to_csv("X_test.csv", index=False)
+    y_train.to_csv("y_train.csv", index=False)
+    y_test.to_csv("y_test.csv", index=False)
     print("Train and test datasets saved.")
 
 if __name__ == "__main__":
